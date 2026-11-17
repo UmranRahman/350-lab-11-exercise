@@ -1,2 +1,23 @@
-2a.
-2b.
+2a. The batched version converged to about 9 FPS, 
+while the unbatched sf::Sprite version (main_nobatch.cpp) 
+converged to about U FPS. The two are close because I ran 
+under WSL, where OpenGL appears to use a software renderer, 
+so rasterizing and additively blending 10,000 overlapping 
+sprites dominates the frame time. Batching still replaces 
+roughly 10,000 draw calls with one and, in part 2, moves 
+the per-vertex transforms onto the GPU, but that saving is 
+small compared to the rasterization cost in this setup.
+
+2b. One method is to enable the depth test 
+(glEnable(GL_DEPTH_TEST), and we already 
+request a 24-bit depth buffer) and have the 
+vertex shader output a per-sprite depth as 
+the z component of gl_Position, for example 
+from a layer value stored per sprite. The 
+rasterizer then compares depths per fragment 
+and keeps the nearest one, so sprites are 
+layered correctly without sorting them on the CPU. 
+The caveat is that fully transparent pixels still 
+write depth and can hide sprites behind them, so we 
+would discard transparent fragments in the fragment 
+shader or sort and blend back to front.

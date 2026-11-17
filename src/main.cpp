@@ -60,21 +60,13 @@ int main() {
     // sf::RenderWindow), you can use at latest OpenGL 2.1, which is a nightmare.
     settings.majorVersion = 2;
     settings.minorVersion = 1;
-    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Particles", sf::State::Windowed, settings);
+    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Shaders", sf::State::Windowed, settings);
     (void)window.setActive();  // set window as OpenGL target
     // window.setMouseCursorVisible(false); // hide cursor
 
     if (!gladLoadGLLoader((GLADloadproc)sf::Context::getFunction)) {
         // Handle GLAD initialization error
         return -1;
-    }
-    if (GLAD_GL_ARB_texture_float) {
-        std::cout << "Textures with 32-bit float channels supported\n";
-        // You can use GL_RGBA32F_ARB to indicate a 32 bit float per channel in a texture's
-        // internal format.
-    } else {
-        std::cout << "textures with 32-bit float channels unsupported\n";
-        abort();
     }
 
     // Query the settings we actually received (may be different):
@@ -83,26 +75,22 @@ int main() {
               << actualSettings.minorVersion << " flags: " << actualSettings.attributeFlags << '\n';
     std::cout << "Maximum texture width (or height): " << sf::Texture::getMaximumSize() << '\n';
 
-    SpriteManager spriteManager({2048, 2048}, 2);
-    TextureID tex1 = spriteManager.registerTexture("assets/dragon_dagger.png");
+    sf::Texture tex1("assets/dragon_dagger.png");
+    std::array<sf::Texture, 3> particleTextures = {
+        sf::Texture("assets/particle_red.png"),
+        sf::Texture("assets/particle_yellow.png"),
+        sf::Texture("assets/particle_purple.png"),
+    };
 
-    std::array<TextureID, 3> particleTextures;
-    particleTextures[0] = spriteManager.registerTexture("assets/particle_red.png");
-    particleTextures[1] = spriteManager.registerTexture("assets/particle_yellow.png");
-    particleTextures[2] = spriteManager.registerTexture("assets/particle_purple.png");
+    sf::Vector2u particleTextureSize = particleTextures[0].getSize();
 
-    sf::Vector2u particleTextureSize = spriteManager.getAtlas().getSizePixels(particleTextures[0]);
-
-    SpriteID cursorSprite = spriteManager.createSprite(tex1);
-    spriteManager.getTransform(cursorSprite).scale = {-2.f, 2.f};
-
-    sf::Image atlasImg = spriteManager.getAtlas().getTexture().copyToImage();
-    (void)atlasImg.saveToFile("atlas.png");
+    sf::Sprite cursorSprite(tex1);
+    cursorSprite.setScale({2.f, 2.f});
 
     // Particle generation
     PCG rng{};
     PCG rng2{};
-    std::vector<SpriteID> particleSprites;
+    std::vector<sf::Sprite> particleSprites;
     particleSprites.reserve(NUM_PARTICLES);
     std::vector<ParticleColor> originalColors;
     originalColors.reserve(NUM_PARTICLES);
@@ -110,21 +98,21 @@ int main() {
     for (size_t i = 0; i < NUM_PARTICLES; ++i) {
         // Use rng to determine particle position
         auto [pos, color] = randomColoredPointOnSphere(rng, 0, 0);
-        auto spriteID = spriteManager.createSprite(particleTextures[static_cast<size_t>(color)]);
-        particleSprites.push_back(spriteID);
-        auto& transform = spriteManager.getTransform(spriteID);
+        auto sprite = sf::Sprite(particleTextures[static_cast<size_t>(color)]);
+        particleSprites.push_back(sprite);
 
-        transform.translation =
+        particleSprites.back().setPosition(
             sf::Vector2f{pos.y * BALL_RADIUS, pos.z * BALL_RADIUS} +
             sf::Vector2f(static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT)) *
                 0.5f -
-            sf::Vector2f(particleTextureSize) * 0.05f;
-        transform.scale = {0.1f, 0.1f};
+            sf::Vector2f(particleTextureSize) * 0.05f);
+        particleSprites.back().setScale({0.1f, 0.1f});
         originalColors.push_back(color);
     }
 
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);  // Additive blending
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_DST_ALPHA);
     glClearColor(0, 0, 0, 1);
 
     Timer timer;
@@ -137,15 +125,13 @@ int main() {
             }
         }
         auto mousePos = sf::Vector2f(sf::Mouse::getPosition(window));
-        mousePos.y = static_cast<float>(window.getSize().y + 2) - mousePos.y;
 
-        spriteManager.getTransform(cursorSprite).translation =
-            sf::Vector2f(sf::Mouse::getPosition(window));
-        spriteManager.getTransform(cursorSprite).translation.y =
-            static_cast<float>(window.getSize().y + 2) -
-            spriteManager.getTransform(cursorSprite).translation.y;
+        cursorSprite.setPosition(sf::Vector2f(sf::Mouse::getPosition(window)));
+        // spriteManager.getTransform(cursorSprite).translation.y
+        //     = static_cast<float>(window.getSize().y + 2)
+        //     - spriteManager.getTransform(cursorSprite).translation.y;
 
-        spriteManager.getTransform(cursorSprite).translation += sf::Vector2f{26, -52};
+        cursorSprite.setPosition(cursorSprite.getPosition() + sf::Vector2f{-26, 0});
 
         // reset rng to regenerate spherical positions
         rng.reset();
@@ -153,19 +139,17 @@ int main() {
             // Use rng to determine particle position
             auto [pos, color] = randomColoredPointOnSphere(rng, mousePos.x / WINDOW_WIDTH, 0);
 
-            auto& transform = spriteManager.getTransform(particleSprites[i]);
-
-            transform.translation =
+            particleSprites[i].setPosition(
                 sf::Vector2f{pos.y * BALL_RADIUS, pos.z * BALL_RADIUS} +
                 sf::Vector2f(static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT)) *
                     0.5f -
-                sf::Vector2f(particleTextureSize) * 0.05f;
+                sf::Vector2f(particleTextureSize) * 0.05f);
 
-            if ((mousePos - (transform.translation + sf::Vector2f(particleTextureSize) * 0.05f))
+            if ((mousePos -
+                 (particleSprites[i].getPosition() + sf::Vector2f(particleTextureSize) * 0.05f))
                     .lengthSquared() < 400) {
                 flipped[i] = true;
-                spriteManager.setTexture(particleSprites[i],
-                                         particleTextures[ParticleColor::PURPLE]);
+                particleSprites[i].setTexture(particleTextures[ParticleColor::PURPLE]);
             }
         }
 
@@ -173,7 +157,7 @@ int main() {
         for (size_t i = 0; i < NUM_PARTICLES; ++i) {
             if ((static_cast<double>(rng2()) / std::numeric_limits<uint32_t>::max()) < 0.005) {
                 flipped[i] = false;
-                spriteManager.setTexture(particleSprites[i], particleTextures[originalColors[i]]);
+                particleSprites[i].setTexture(particleTextures[originalColors[i]]);
             }
         }
 
@@ -183,18 +167,14 @@ int main() {
             std::cout << "Average fps: " << 1000 * 1.f / frameTime << '\n';
         }
 
-        // UNCOMMENT THIS ONCE YOU'RE WORKING ON "Batched rendering (part 2)"
-        // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        // spriteManager.drawGL();
-        // DOWN TO HERE
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // COMMENT THIS BLOCK ONCE YOU'RE WORKING ON "Batched rendering (part 2)"
-        window.clear(sf::Color::Black);
         sf::RenderStates states{};
         states.blendMode = sf::BlendAdd;
-        spriteManager.draw(window, states);
-        // DOWN TO HERE
-
+        for (const auto& sprite : particleSprites) {
+            window.draw(sprite, states);
+        }
+        window.draw(cursorSprite, states);
         window.display();
     }
     return 0;

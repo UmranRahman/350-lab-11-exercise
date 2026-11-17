@@ -30,7 +30,7 @@ public:
           mNumSprites{0},
           mAtlas(atlasSize, padding) {
         // PART 1: "main_sfml.vert".  PART 2: change this to "main.vert".
-        if (!mShader.loadFromFile(std::filesystem::path{"main_sfml.vert"}, std::filesystem::path{"main.frag"})) {
+        if (!mShader.loadFromFile(std::filesystem::path{"main.vert"}, std::filesystem::path{"main.frag"})) {
             throw std::runtime_error("Failed to load shaders");
         }
         mShader.setUniform("texture", sf::Shader::CurrentTexture);  // used by part 1 only

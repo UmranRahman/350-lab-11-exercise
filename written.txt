@@ -1,6 +1,6 @@
 2a. The batched version converged to about 9 FPS, 
 while the unbatched sf::Sprite version (main_nobatch.cpp) 
-converged to about U FPS. The two are close because I ran 
+converged to about also close to 9 FPS. The two are close because I ran 
 under WSL, where OpenGL appears to use a software renderer, 
 so rasterizing and additively blending 10,000 overlapping 
 sprites dominates the frame time. Batching still replaces 
